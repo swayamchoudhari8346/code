@@ -1,0 +1,321 @@
+
+// Switch to database
+use college
+
+// Show current database
+db
+
+// Show all databases
+show dbs
+
+// Show all collections
+show collections
+
+
+
+// Insert one document
+db.students.insertOne({
+  name: "Atul",
+  age: 23,
+  marks: 90
+})
+
+// Insert multiple documents
+db.students.insertMany([
+  { name: "Rahul", age: 22, marks: 85 },
+  { name: "Priya", age: 21, marks: 92 },
+  { name: "Amit", age: 23, marks: 78 },
+  { name: "Sneha", age: 22, marks: 88 }
+])
+
+
+// Display all documents
+db.students.find()
+
+// Display one document
+db.students.findOne({ name: "Atul" })
+
+// Find by exact marks
+db.students.find({ marks: 90 })
+
+// Display selected fields only
+db.students.find(
+  {},
+  { name: 1, marks: 1, _id: 0 }
+)
+
+// Count all documents
+db.students.countDocuments({})
+
+// Find distinct ages
+db.students.distinct("age")
+
+
+
+// Update one document
+db.students.updateOne(
+  { name: "Atul" },
+  { $set: { marks: 95 } }
+)
+
+// Update multiple documents
+db.students.updateMany(
+  { age: 23 },
+  { $set: { branch: "Computer" } }
+)
+
+// Increase marks by 5
+db.students.updateOne(
+  { name: "Rahul" },
+  { $inc: { marks: 5 } }
+)
+
+// Add or change a field
+db.students.updateOne(
+  { name: "Atul" },
+  { $set: { city: "Mumbai" } }
+)
+
+// Remove a field
+db.students.updateOne(
+  { name: "Atul" },
+  { $unset: { city: "" } }
+)
+
+// Replace the entire document except its _id
+// Use carefully: other fields are removed
+db.students.replaceOne(
+  { name: "Amit" },
+  { name: "Amit", age: 24, marks: 80 }
+)
+
+
+/* ==========================================
+   5. DELETE - REMOVE DOCUMENTS
+   ========================================== */
+
+// Delete one document
+db.students.deleteOne({ name: "Atul" })
+
+// Delete multiple documents
+db.students.deleteMany({
+  marks: { $lt: 80 }
+})
+
+// Delete all documents in collection
+// WARNING: Removes every student document
+db.students.deleteMany({})
+
+// Drop the entire collection
+// WARNING: Removes collection and its documents
+db.students.drop()
+
+// Drop the current database
+// WARNING: Permanently removes the current database
+db.dropDatabase()
+
+
+/* ==========================================
+   6. COMPARISON OPERATORS
+   ========================================== */
+
+// Greater than
+db.students.find({ marks: { $gt: 80 } })
+
+// Less than
+db.students.find({ marks: { $lt: 80 } })
+
+// Greater than or equal
+db.students.find({ marks: { $gte: 80 } })
+
+// Less than or equal
+db.students.find({ marks: { $lte: 90 } })
+
+// Not equal
+db.students.find({ age: { $ne: 23 } })
+
+// Match any value in a list
+db.students.find({
+  name: { $in: ["Atul", "Rahul"] }
+})
+
+// Exclude values in a list
+db.students.find({
+  name: { $nin: ["Atul", "Rahul"] }
+})
+
+
+/* ==========================================
+   7. LOGICAL OPERATORS
+   ========================================== */
+
+// AND: Both conditions must be true
+db.students.find({
+  $and: [
+    { age: { $gte: 22 } },
+    { marks: { $gt: 80 } }
+  ]
+})
+
+// OR: At least one condition must be true
+db.students.find({
+  $or: [
+    { age: 21 },
+    { marks: { $gt: 90 } }
+  ]
+})
+
+// NOT: Negate a condition
+db.students.find({
+  marks: { $not: { $gt: 80 } }
+})
+
+
+/* ==========================================
+   8. SORTING
+   ========================================== */
+
+// Ascending order
+db.students.find().sort({ marks: 1 })
+
+// Descending order
+db.students.find().sort({ marks: -1 })
+
+// Sort by age, then marks
+db.students.find().sort({
+  age: 1,
+  marks: -1
+})
+
+
+/* ==========================================
+   9. LIMIT AND SKIP - PAGINATION
+   ========================================== */
+
+// Display first 2 documents
+db.students.find().limit(2)
+
+// Skip first 2 documents
+db.students.find().skip(2)
+
+// First page: 5 documents
+db.students.find()
+  .sort({ _id: 1 })
+  .skip(0)
+  .limit(5)
+
+// Second page: 5 documents
+db.students.find()
+  .sort({ _id: 1 })
+  .skip(5)
+  .limit(5)
+
+// Third page: 5 documents
+db.students.find()
+  .sort({ _id: 1 })
+  .skip(10)
+  .limit(5)
+
+// Pagination formula:
+// skip = (page number - 1) * page size
+
+
+/* ==========================================
+   10. AGGREGATION PIPELINE
+   ========================================== */
+
+// Count students in each age group
+db.students.aggregate([
+  {
+    $group: {
+      _id: "$age",
+      totalStudents: { $sum: 1 }
+    }
+  }
+])
+
+// Calculate average marks
+db.students.aggregate([
+  {
+    $group: {
+      _id: null,
+      averageMarks: { $avg: "$marks" }
+    }
+  }
+])
+
+// Find highest marks
+db.students.aggregate([
+  {
+    $group: {
+      _id: null,
+      highestMarks: { $max: "$marks" }
+    }
+  }
+])
+
+// Find lowest marks
+db.students.aggregate([
+  {
+    $group: {
+      _id: null,
+      lowestMarks: { $min: "$marks" }
+    }
+  }
+])
+
+// Calculate total marks
+db.students.aggregate([
+  {
+    $group: {
+      _id: null,
+      totalMarks: { $sum: "$marks" }
+    }
+  }
+])
+
+// Filter students and sort by marks descending
+db.students.aggregate([
+  { $match: { marks: { $gt: 80 } } },
+  { $sort: { marks: -1 } }
+])
+
+// Group by age and calculate average marks
+db.students.aggregate([
+  {
+    $group: {
+      _id: "$age",
+      averageMarks: { $avg: "$marks" },
+      totalStudents: { $sum: 1 }
+    }
+  },
+  { $sort: { _id: 1 } }
+])
+
+
+/* ==========================================
+   11. QUICK CRUD REVISION
+   ========================================== */
+
+// CREATE
+db.students.insertOne({})
+db.students.insertMany([{}, {}])
+
+// READ
+db.students.find()
+db.students.findOne({})
+
+// UPDATE
+db.students.updateOne({}, { $set: {} })
+db.students.updateMany({}, { $set: {} })
+
+// DELETE
+db.students.deleteOne({})
+db.students.deleteMany({})
+
+// OTHER IMPORTANT METHODS
+db.students.countDocuments({})
+db.students.find().sort({ marks: 1 })
+db.students.find().limit(5)
+db.students.find().skip(5)
+db.students.aggregate([])

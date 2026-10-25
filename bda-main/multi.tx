@@ -1,0 +1,273 @@
+# Experiment No. 5: Matrix Multiplication Using Hadoop MapReduce
+
+## Step 1: Start Hadoop Services
+
+Open Command Prompt and execute:
+
+```cmd
+cd C:\HadoopProject
+start-all.cmd
+```
+
+## Step 2: Create the Java Program
+
+Create a file named `MatrixMultiplication.java` inside `C:\HadoopProject`.
+
+```java
+import java.io.*;
+import java.util.*;
+import org.apache.hadoop.conf.Configuration;
+import org.apache.hadoop.fs.*;
+import org.apache.hadoop.io.*;
+import org.apache.hadoop.mapreduce.*;
+import org.apache.hadoop.mapreduce.lib.input.FileInputFormat;
+import org.apache.hadoop.mapreduce.lib.output.FileOutputFormat;
+
+public class MatrixMultiplication {
+
+    public static class MatrixMapper
+            extends Mapper<LongWritable, Text, Text, Text> {
+
+        int rowsA, colsA, colsB;
+
+        protected void setup(Context context) {
+            Configuration conf = context.getConfiguration();
+            rowsA = conf.getInt("rowsA", 0);
+            colsA = conf.getInt("colsA", 0);
+            colsB = conf.getInt("colsB", 0);
+        }
+
+        public void map(LongWritable key, Text value, Context context)
+                throws IOException, InterruptedException {
+
+            String[] p = value.toString().split(",");
+            String matrix = p[0];
+            int row = Integer.parseInt(p[1]);
+            int col = Integer.parseInt(p[2]);
+            int number = Integer.parseInt(p[3]);
+
+            if (matrix.equals("A")) {
+                for (int j = 0; j < colsB; j++)
+                    context.write(new Text(row + "," + j),
+                        new Text("A," + col + "," + number));
+            } else {
+                for (int i = 0; i < rowsA; i++)
+                    context.write(new Text(i + "," + col),
+                        new Text("B," + row + "," + number));
+            }
+        }
+    }
+
+    public static class MatrixReducer
+            extends Reducer<Text, Text, Text, IntWritable> {
+
+        int commonDimension;
+
+        protected void setup(Context context) {
+            commonDimension = context.getConfiguration()
+                    .getInt("colsA", 0);
+        }
+
+        public void reduce(Text key, Iterable<Text> values,
+                Context context)
+                throws IOException, InterruptedException {
+
+            int[] A = new int[commonDimension];
+            int[] B = new int[commonDimension];
+
+            for (Text value : values) {
+                String[] p = value.toString().split(",");
+                int index = Integer.parseInt(p[1]);
+                int number = Integer.parseInt(p[2]);
+
+                if (p[0].equals("A"))
+                    A[index] = number;
+                else
+                    B[index] = number;
+            }
+
+            int result = 0;
+            for (int k = 0; k < commonDimension; k++)
+                result += A[k] * B[k];
+
+            context.write(key, new IntWritable(result));
+        }
+    }
+
+    public static void main(String[] args) throws Exception {
+
+        Scanner sc = new Scanner(System.in);
+
+        System.out.print("Enter rows of Matrix A: ");
+        int rowsA = sc.nextInt();
+
+        System.out.print("Enter columns of Matrix A: ");
+        int colsA = sc.nextInt();
+
+        int[][] A = new int[rowsA][colsA];
+
+        System.out.println("Enter Matrix A:");
+        for (int i = 0; i < rowsA; i++)
+            for (int j = 0; j < colsA; j++)
+                A[i][j] = sc.nextInt();
+
+        System.out.print("Enter rows of Matrix B: ");
+        int rowsB = sc.nextInt();
+
+        System.out.print("Enter columns of Matrix B: ");
+        int colsB = sc.nextInt();
+
+        if (colsA != rowsB) {
+            System.out.println("Matrix multiplication not possible.");
+            sc.close();
+            return;
+        }
+
+        int[][] B = new int[rowsB][colsB];
+
+        System.out.println("Enter Matrix B:");
+        for (int i = 0; i < rowsB; i++)
+            for (int j = 0; j < colsB; j++)
+                B[i][j] = sc.nextInt();
+
+        sc.close();
+
+        File folder = new File("matrix_input");
+        folder.mkdirs();
+        File file = new File(folder, "matrix.txt");
+
+        BufferedWriter writer = new BufferedWriter(
+                new FileWriter(file));
+
+        for (int i = 0; i < rowsA; i++)
+            for (int j = 0; j < colsA; j++) {
+                writer.write("A," + i + "," + j + "," + A[i][j]);
+                writer.newLine();
+            }
+
+        for (int i = 0; i < rowsB; i++)
+            for (int j = 0; j < colsB; j++) {
+                writer.write("B," + i + "," + j + "," + B[i][j]);
+                writer.newLine();
+            }
+
+        writer.close();
+
+        Configuration conf = new Configuration();
+        conf.setInt("rowsA", rowsA);
+        conf.setInt("colsA", colsA);
+        conf.setInt("colsB", colsB);
+
+        Job job = Job.getInstance(conf, "Matrix Multiplication");
+        job.setJarByClass(MatrixMultiplication.class);
+        job.setMapperClass(MatrixMapper.class);
+        job.setReducerClass(MatrixReducer.class);
+        job.setMapOutputKeyClass(Text.class);
+        job.setMapOutputValueClass(Text.class);
+        job.setOutputKeyClass(Text.class);
+        job.setOutputValueClass(IntWritable.class);
+
+        Path input = new Path("matrix_hadoop_input");
+        Path output = new Path("matrix_hadoop_output");
+        FileSystem fs = FileSystem.get(conf);
+
+        if (fs.exists(input)) fs.delete(input, true);
+        if (fs.exists(output)) fs.delete(output, true);
+
+        fs.copyFromLocalFile(new Path(file.getAbsolutePath()), input);
+        FileInputFormat.addInputPath(job, input);
+        FileOutputFormat.setOutputPath(job, output);
+
+        if (!job.waitForCompletion(true)) {
+            fs.close();
+            System.exit(1);
+        }
+
+        int[][] result = new int[rowsA][colsB];
+        Path resultFile = new Path(output, "part-r-00000");
+
+        BufferedReader reader = new BufferedReader(
+                new InputStreamReader(fs.open(resultFile)));
+
+        String line;
+        while ((line = reader.readLine()) != null) {
+            String[] p = line.split("\\s+");
+            String[] pos = p[0].split(",");
+            result[Integer.parseInt(pos[0])]
+                  [Integer.parseInt(pos[1])] =
+                    Integer.parseInt(p[1]);
+        }
+
+        reader.close();
+        fs.close();
+
+        System.out.println("Result Matrix:");
+        for (int i = 0; i < rowsA; i++) {
+            for (int j = 0; j < colsB; j++)
+                System.out.print(result[i][j] + "\t");
+            System.out.println();
+        }
+
+        System.out.println("Matrix multiplication completed!");
+    }
+}
+```
+
+## Step 3: Compile the Java Program
+
+```cmd
+hadoop com.sun.tools.javac.Main MatrixMultiplication.java
+```
+
+## Step 4: Check the Generated Class Files
+
+```cmd
+dir MatrixMultiplication*.class
+```
+
+## Step 5: Create the JAR File
+
+```cmd
+jar cf matrix.jar MatrixMultiplication*.class
+```
+
+## Step 6: Execute the Program
+
+```cmd
+hadoop jar matrix.jar MatrixMultiplication
+```
+
+## Step 7: Enter the Input Matrices
+
+Example input:
+
+```text
+Enter rows of Matrix A: 2
+Enter columns of Matrix A: 2
+Enter Matrix A:
+1 2
+3 4
+Enter rows of Matrix B: 2
+Enter columns of Matrix B: 2
+Enter Matrix B:
+5 6
+7 8
+```
+
+## Step 8: Observe the Output
+
+```text
+Result Matrix:
+19    22
+43    50
+Matrix multiplication completed!
+```
+
+## Step 9: Stop Hadoop Services
+
+After completing the experiment, open another Command Prompt and execute:
+
+```cmd
+cd C:\HadoopProject
+stop-all.cmd
+```
