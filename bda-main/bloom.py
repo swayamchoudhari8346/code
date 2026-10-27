@@ -1,7 +1,7 @@
 import hashlib
 
 class BloomFilter:
-    def __init__(self, size=20, k=3):
+    def __init__(self, size=100, k=3):
         self.size, self.k = size, k
         self.bits = [0] * size
 
@@ -26,7 +26,7 @@ print("Hash Positions:")
 for n in numbers:
     print(n, "->", bloom.hashes(n))
 
-print("Index:", list(range(20)))
+print("Index:", list(range(100)))
 print("Bit Array:", bloom.bits)
 
 search = int(input("Enter number to search: "))
